@@ -145,11 +145,15 @@ def parse_headers(raw_notion: dict) -> dict:
                             page["properties"]["Date"]["date"]["end"]
 
         # Parent
+        logging.info(f"🤖Parent: {page['parent'].keys()}")
+        parent_id = None
         if "workspace" in page["parent"].keys():
             parent_id = None
             notion_pages[page_id]["parent"] = parent_id
         elif notion_pages[page_id]["type"] in ["page", "database"]:
+            logging.info(f"🤖type: {notion_pages[page_id]['type']}")
             parent_id = page["parent"]["page_id"]
+            logging.info(f"🤖Parent id: {parent_id}")
             notion_pages[page_id]["parent"] = parent_id
         elif notion_pages[page_id]["type"] == "db_entry":
             parent_id = page["parent"]["database_id"]
@@ -160,6 +164,9 @@ def parse_headers(raw_notion: dict) -> dict:
             notion_pages[page_id]["children"] = []
 
         if parent_id is not None:
+            if parent_id not in notion_pages.keys():
+                notion_pages[parent_id] = {}
+                notion_pages[parent_id]["children"] = []
             notion_pages[parent_id]["children"].append(page_id)
 
         # Cover
@@ -177,7 +184,14 @@ def parse_headers(raw_notion: dict) -> dict:
                 notion_pages[page_id]["emoji"] = \
                     page["icon"]["emoji"]
                 notion_pages[page_id]["icon"] = None
+            elif "external" in page["icon"].keys():
+                notion_pages[page_id]["emoji"] = None
+                notion_pages[page_id]["icon"] = \
+                    page["icon"]["external"]["url"]
+                notion_pages[page_id]["files"].append(
+                    page["icon"]["external"]["url"])
             else:
+                logging.info(f"🤖Icon: {page['icon']}")
                 icon = page["icon"]["file"]["url"]
                 notion_pages[page_id]["icon"] = icon
                 notion_pages[page_id]["files"].append(icon)
@@ -195,7 +209,7 @@ def find_lists_in_dbs(structured_notion: dict):
     not have a cover, we will treat it as list.
     """
     for page_id, page in structured_notion["pages"].items():
-        if page["type"] == 'database':
+        if page.get("type") == 'database':
             for child_id in page["children"]:
                 if structured_notion["pages"][child_id]["cover"] is None:
                     structured_notion["pages"][page_id]["db_list"] = True
@@ -203,7 +217,7 @@ def find_lists_in_dbs(structured_notion: dict):
         
 def parse_family_line(page_id: str, family_line: list, structured_notion: dict):
     """Parses the whole parental line for page with 'page_id'"""
-    if structured_notion['pages'][page_id]["parent"] is not None:
+    if structured_notion['pages'][page_id].get("parent") is not None:
         par_id = structured_notion["pages"][page_id]["parent"]
         family_line.insert(0, par_id)
         family_line = parse_family_line(par_id, family_line, structured_notion)
